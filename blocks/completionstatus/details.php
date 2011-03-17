@@ -76,23 +76,32 @@ if (!$can_view) {
 }
 
 
+// Load completion data
+$info = new completion_info($course);
+
+$returnurl = "{$CFG->wwwroot}/course/view.php?id={$id}";
+
 // Don't display if completion isn't enabled!
-if (!$course->enablecompletion) {
-    print_error('completionnotenabled', 'block_completionstatus');
+if (!$info->is_enabled()) {
+    print_error('completionnotenabled', 'completion', $returnurl);
 }
 
 // Load criteria to display
-$info = new completion_info($course);
 $completions = $info->get_completions($user->id);
 
 // Check if this course has any criteria
 if (empty($completions)) {
-    print_error('nocriteria', 'block_completionstatus');
+    print_error('nocriteriaset', 'completion', $returnurl);
 }
 
 // Check this user is enroled
 if (!$info->is_tracked_user($user->id)) {
-    print_error('notenroled', 'completion');
+    if ($USER->id == $user->id) {
+        print_error('notenroled', 'completion', $returnurl);
+    }
+    else {
+        print_error('usernotenroled', 'completion', $returnurl);
+    }
 }
 
 

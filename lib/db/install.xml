@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="lib/db" VERSION="20120122" COMMENT="XMLDB file for core Moodle tables"
+<XMLDB PATH="lib/db" VERSION="20120521" COMMENT="XMLDB file for core Moodle tables"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../lib/xmldb/xmldb.xsd"
 >
@@ -146,7 +146,8 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="course" UNIQUE="false" FIELDS="course" NEXT="criteriatype"/>
-        <INDEX NAME="criteriatype" UNIQUE="false" FIELDS="criteriatype" PREVIOUS="course"/>
+        <INDEX NAME="criteriatype" UNIQUE="false" FIELDS="criteriatype" PREVIOUS="course" NEXT="coursecriteriatype"/>
+        <INDEX NAME="coursecriteriatype" UNIQUE="true" FIELDS="course, criteriatype" PREVIOUS="criteriatype"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="course_completion_criteria" COMMENT="Course completion criteria" PREVIOUS="course_completion_aggr_methd" NEXT="course_completion_crit_compl">
@@ -169,16 +170,15 @@
         <INDEX NAME="course" UNIQUE="false" FIELDS="course"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="course_completion_crit_compl" COMMENT="Course completion user records" PREVIOUS="course_completion_criteria" NEXT="course_completion_notify">
+    <TABLE NAME="course_completion_crit_compl" COMMENT="Course completion user records" PREVIOUS="course_completion_criteria" NEXT="course_completions">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" NEXT="userid"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="id" NEXT="course"/>
         <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="userid" NEXT="criteriaid"/>
         <FIELD NAME="criteriaid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Completion criteria this references" PREVIOUS="course" NEXT="gradefinal"/>
         <FIELD NAME="gradefinal" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="5" COMMENT="The final grade for the course (included regardless of whether a passing grade was required)" PREVIOUS="criteriaid" NEXT="unenroled"/>
-        <FIELD NAME="unenroled" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when the user was unenroled" PREVIOUS="gradefinal" NEXT="deleted"/>
-        <FIELD NAME="deleted" TYPE="int" LENGTH="1" NOTNULL="false" SEQUENCE="false" PREVIOUS="unenroled" NEXT="timecompleted"/>
-        <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" PREVIOUS="deleted"/>
+        <FIELD NAME="unenroled" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when the user was unenroled" PREVIOUS="gradefinal" NEXT="timecompleted"/>
+        <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" PREVIOUS="unenroled"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
@@ -187,32 +187,16 @@
         <INDEX NAME="userid" UNIQUE="false" FIELDS="userid" NEXT="course"/>
         <INDEX NAME="course" UNIQUE="false" FIELDS="course" PREVIOUS="userid" NEXT="criteriaid"/>
         <INDEX NAME="criteriaid" UNIQUE="false" FIELDS="criteriaid" PREVIOUS="course" NEXT="timecompleted"/>
-        <INDEX NAME="timecompleted" UNIQUE="false" FIELDS="timecompleted" PREVIOUS="criteriaid"/>
+        <INDEX NAME="timecompleted" UNIQUE="false" FIELDS="timecompleted" PREVIOUS="criteriaid" NEXT="useridcoursecriteriaid"/>
+        <INDEX NAME="useridcoursecriteriaid" UNIQUE="true" FIELDS="userid, course, criteriaid" PREVIOUS="timecompleted"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="course_completion_notify" COMMENT="Course completion notification emails" PREVIOUS="course_completion_crit_compl" NEXT="course_completions">
-      <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" NEXT="course"/>
-        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="id" NEXT="role"/>
-        <FIELD NAME="role" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="ID of the role to receive this notification message when a course has been completed" PREVIOUS="course" NEXT="message"/>
-        <FIELD NAME="message" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="HTML formatted message to be sent" PREVIOUS="role" NEXT="timesent"/>
-        <FIELD NAME="timesent" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="message"/>
-      </FIELDS>
-      <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-      </KEYS>
-      <INDEXES>
-        <INDEX NAME="course" UNIQUE="false" FIELDS="course"/>
-      </INDEXES>
-    </TABLE>
-    <TABLE NAME="course_completions" COMMENT="Course completion records" PREVIOUS="course_completion_notify" NEXT="course_display">
+    <TABLE NAME="course_completions" COMMENT="Course completion records" PREVIOUS="course_completion_crit_compl" NEXT="course_display">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" NEXT="userid"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="id" NEXT="course"/>
-        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="userid" NEXT="deleted"/>
-        <FIELD NAME="deleted" TYPE="int" LENGTH="1" NOTNULL="false" SEQUENCE="false" PREVIOUS="course" NEXT="timenotified"/>
-        <FIELD NAME="timenotified" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" PREVIOUS="deleted" NEXT="timeenrolled"/>
-        <FIELD NAME="timeenrolled" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="timenotified" NEXT="timestarted"/>
+        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="userid" NEXT="timeenrolled"/>
+        <FIELD NAME="timeenrolled" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="course" NEXT="timestarted"/>
         <FIELD NAME="timestarted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="timeenrolled" NEXT="timecompleted"/>
         <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" PREVIOUS="timestarted" NEXT="reaggregate"/>
         <FIELD NAME="reaggregate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" PREVIOUS="timecompleted"/>
@@ -223,7 +207,8 @@
       <INDEXES>
         <INDEX NAME="userid" UNIQUE="false" FIELDS="userid" NEXT="course"/>
         <INDEX NAME="course" UNIQUE="false" FIELDS="course" PREVIOUS="userid" NEXT="timecompleted"/>
-        <INDEX NAME="timecompleted" UNIQUE="false" FIELDS="timecompleted" PREVIOUS="course"/>
+        <INDEX NAME="timecompleted" UNIQUE="false" FIELDS="timecompleted" PREVIOUS="course" NEXT="useridcourse"/>
+        <INDEX NAME="useridcourse" UNIQUE="true" FIELDS="userid, course" PREVIOUS="timecompleted"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="course_display" COMMENT="Stores info about how to display the course" PREVIOUS="course_completions" NEXT="enrol">

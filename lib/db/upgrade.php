@@ -422,5 +422,96 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2012042300.02);
     }
 
+    if ($oldversion < 2012042700.01) {
+
+        /**
+         * Major clean up of course completion tables
+         */
+
+        // Drop "deleted" fields
+        $table = new xmldb_table('course_completions');
+        $table2 = new xmldb_table('course_completion_crit_compl');
+        $field = new xmldb_field('deleted');
+
+        // Conditionally launch drop field deleted from course_completions
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Conditionally launch drop field deleted from course_completion_crit_compl
+        if ($dbman->field_exists($table2, $field)) {
+            $dbman->drop_field($table2, $field);
+        }
+
+        // Drop unused table "course_completion_notify"
+        $table = new xmldb_table('course_completion_notify');
+        if ($dbman->table_exists($table)) {
+            $dbman->drop_table($table);
+        }
+
+        // Drop "timenotified" field from course_completions
+        $table = new xmldb_table('course_completions');
+        $field = new xmldb_field('timenotified');
+
+        // Conditionally launch drop field timenotified from course_completions
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+
+        // Clean up all instances of duplicate records
+        upgrade_course_completion_remove_duplicates(
+            'course_completions',
+            array('userid', 'course'),
+            array('timecompleted', 'timestarted', 'timeenrolled')
+        );
+
+        upgrade_course_completion_remove_duplicates(
+            'course_completion_crit_compl',
+            array('userid', 'course', 'criteriaid'),
+            array('timecompleted')
+        );
+
+        upgrade_course_completion_remove_duplicates(
+            'course_completion_aggr_methd',
+            array('course', 'criteriatype')
+        );
+
+
+        // Add indexes to prevent new duplicates
+
+        // Define index useridcourse (unique) to be added to course_completions
+        $table = new xmldb_table('course_completions');
+        $index = new xmldb_index('useridcourse', XMLDB_INDEX_UNIQUE, array('userid', 'course'));
+
+        // Conditionally launch add index useridcourse
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+
+        // Define index useridcoursecriteraid (unique) to be added to course_completion_crit_compl
+        $table = new xmldb_table('course_completion_crit_compl');
+        $index = new xmldb_index('useridcoursecriteraid', XMLDB_INDEX_UNIQUE, array('userid', 'course', 'criteriaid'));
+
+        // Conditionally launch add index useridcoursecriteraid
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+
+        // Define index coursecriteratype (unique) to be added to course_completion_aggr_methd
+        $table = new xmldb_table('course_completion_aggr_methd');
+        $index = new xmldb_index('coursecriteriatype', XMLDB_INDEX_UNIQUE, array('course', 'criteriatype'));
+
+        // Conditionally launch add index coursecriteratype
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached
+        upgrade_main_savepoint(true, 2012042700.01);
+    }
+
     return true;
 }

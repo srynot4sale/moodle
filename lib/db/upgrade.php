@@ -422,5 +422,170 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2012042300.02);
     }
 
+    if ($oldversion < 2012042700.01) {
+
+        /**
+         * Major clean up of course completion tables
+         */
+
+        // Drop "deleted" fields
+        $table = new xmldb_table('course_completions');
+        $table2 = new xmldb_table('course_completion_crit_compl');
+        $field = new xmldb_field('deleted');
+
+        // Conditionally launch drop field deleted from course_completions
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Conditionally launch drop field deleted from course_completion_crit_compl
+        if ($dbman->field_exists($table2, $field)) {
+            $dbman->drop_field($table2, $field);
+        }
+
+        // Drop unused table "course_completion_notify"
+        $table = new xmldb_table('course_completion_notify');
+        if ($dbman->table_exists($table)) {
+            $dbman->drop_table($table);
+        }
+
+        // Drop "timenotified" field from course_completions
+        $table = new xmldb_table('course_completions');
+        $field = new xmldb_field('timenotified');
+
+        // Conditionally launch drop field timenotified from course_completions
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+
+        /**
+         * This function finds duplicate records (based on combinations of fields that should be unique)
+         * and then progamatically generated a "most correct" version of the data, update and removing
+         * records as appropriate
+         *
+         * Thanks to Dan Marsden for help
+         *
+         * @param   string  $table      Table name
+         * @param   array   $uniques    Array of field names that should be unique
+         * @param   array   $feildstocheck  Array of fields to generate "correct" data from (optional)
+         * @return  void
+         */
+        function course_completion_remove_duplicates($table, $uniques, $fieldstocheck = array()) {
+            global $DB;
+
+            // Find duplicates
+            $sql_cols = implode(', ', $uniques);
+
+            $sql = "SELECT {$sql_cols} FROM {{$table}} GROUP BY {$sql_cols} HAVING (count(id) > 1)";
+            $duplicates = $DB->get_recordset_sql($sql, array());
+
+            // Loop through duplicates
+            foreach ($duplicates as $duplicate) {
+                $pointer = 0;
+
+                // Generate SQL for finding records with these duplicate uniques
+                $sql_select = implode(' = ? AND ', $uniques).' = ?'; /// builds "fieldname = ? AND fieldname = ?"
+                $uniq_values = array();
+                foreach ($uniques as $u) {
+                    $uniq_values[] = $duplicate->$u;
+                }
+
+                $sql_order = implode(' DESC, ', $uniques).' DESC'; // builds "fieldname DESC, fieldname DESC"
+
+                // Get records with these duplicate uniques
+                $records = $DB->get_records_select(
+                    $table,
+                    $sql_select,
+                    $uniq_values,
+                    $sql_order
+                );
+
+                // Loop through and build a "correct" record, deleting the others
+                $needsupdate = false;
+                $origrecord = null;
+                foreach ($records as $record) {
+                    $pointer++;
+                    if ($pointer === 1) { // keep 1st record but delete all others.
+                        $origrecord = $record;
+                    } else {
+                        // If we have fields to check, update original record
+                        if ($fieldstocheck) {
+                            // we need to keep the "oldest" of all these fields as the valid completion record.
+                            // but we want to ignore null values
+                            foreach ($fieldstocheck as $f) {
+                                if ($record->$f && (($origrecord->$f > $record->$f) || !$origrecord->$f)) {
+                                    $origrecord->$f = $record->$f;
+                                    $needsupdate = true;
+                                }
+                            }
+                        }
+                        $DB->delete_records($table, array('id' => $record->id));
+                    }
+                }
+                if ($needsupdate || isset($origrecord->reaggregate)) {
+                    // If this table has a reaggregate field, update to force recheck on next cron cron
+                    if (isset($origrecord->reaggregate)) {
+                        $origrecord->reaggregate = time();
+                    }
+                    $DB->update_record($table, $origrecord);
+                }
+            }
+        }
+
+        // Clean up all instances of duplicate records
+        course_completion_remove_duplicates(
+            'course_completions',
+            array('userid', 'course'),
+            array('timecompleted', 'timestarted', 'timeenrolled')
+        );
+
+        course_completion_remove_duplicates(
+            'course_completion_crit_compl',
+            array('userid', 'course', 'criteriaid'),
+            array('timecompleted')
+        );
+
+        course_completion_remove_duplicates(
+            'course_completion_aggr_methd',
+            array('course', 'criteriatype')
+        );
+
+
+        // Add indexes to prevent new duplicates
+
+        // Define index useridcourse (unique) to be added to course_completions
+        $table = new xmldb_table('course_completions');
+        $index = new xmldb_index('useridcourse', XMLDB_INDEX_UNIQUE, array('userid', 'course'));
+
+        // Conditionally launch add index useridcourse
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+
+        // Define index useridcoursecriteraid (unique) to be added to course_completion_crit_compl
+        $table = new xmldb_table('course_completion_crit_compl');
+        $index = new xmldb_index('useridcoursecriteraid', XMLDB_INDEX_UNIQUE, array('userid', 'course', 'criteriaid'));
+
+        // Conditionally launch add index useridcoursecriteraid
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+
+        // Define index coursecriteratype (unique) to be added to course_completion_aggr_methd
+        $table = new xmldb_table('course_completion_aggr_methd');
+        $index = new xmldb_index('coursecriteriatype', XMLDB_INDEX_UNIQUE, array('course', 'criteriatype'));
+
+        // Conditionally launch add index coursecriteratype
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached
+        upgrade_main_savepoint(true, 2012042700.01);
+    }
+
     return true;
 }

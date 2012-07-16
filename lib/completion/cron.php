@@ -48,17 +48,10 @@ function completion_cron() {
  * @return void
  */
 function completion_cron_mark_started() {
-    global $CFG, $DB;
+    global $DB;
 
     if (debugging()) {
         mtrace('Marking users as started');
-    }
-
-    if (!empty($CFG->gradebookroles)) {
-        $roles = ' AND ra.roleid IN ('.$CFG->gradebookroles.')';
-    } else {
-        // This causes it to default to everyone (if there is no student role)
-        $roles = '';
     }
 
     /**
@@ -79,44 +72,42 @@ function completion_cron_mark_started() {
     $sql = "
         SELECT
             c.id AS course,
-            u.id AS userid,
+            ue.userid AS userid,
             crc.id AS completionid,
             ue.timestart AS timeenrolled,
             ue.timecreated
         FROM
-            {user} u
-        INNER JOIN
             {user_enrolments} ue
-         ON ue.userid = u.id
         INNER JOIN
             {enrol} e
          ON e.id = ue.enrolid
         INNER JOIN
             {course} c
          ON c.id = e.courseid
-        INNER JOIN
-            {role_assignments} ra
-         ON ra.userid = u.id
         LEFT JOIN
             {course_completions} crc
          ON crc.course = c.id
-        AND crc.userid = u.id
+        AND crc.userid = ue.userid
         WHERE
             c.enablecompletion = 1
         AND crc.timeenrolled IS NULL
-        AND ue.status = 0
-        AND e.status = 0
-        AND u.deleted = 0
+        AND ue.status = ?
+        AND e.status = ?
         AND ue.timestart < ?
         AND (ue.timeend > ? OR ue.timeend = 0)
-            $roles
         ORDER BY
             course,
             userid
     ";
 
     $now = time();
-    $rs = $DB->get_recordset_sql($sql, array($now, $now, $now, $now));
+    $params = array(
+        ENROL_USER_ACTIVE,
+        ENROL_INSTANCE_ENABLED,
+        $now,
+        $now
+    );
+    $rs = $DB->get_recordset_sql($sql, $params);
 
     // Check if result is empty
     if (!$rs->valid()) {
@@ -148,8 +139,10 @@ function completion_cron_mark_started() {
         }
         else {
             // Not all enrol plugins fill out timestart correctly, so use whichever
-            // is non-zero
-            $current->timeenrolled = max($current->timecreated, $current->timeenrolled);
+            // is non-zero. Note, timeenrolled == timestart (see SQL above)
+            if (!$current->timeenrolled) {
+                $current->timeenrolled = $current->timecreated;
+            }
         }
 
         // If we are at the last record,
@@ -177,8 +170,10 @@ function completion_cron_mark_started() {
         }
         // Else, if this record is for the same user/course
         elseif ($prev && $current) {
-            // Use oldest timeenrolled
-            $current->timeenrolled = min($current->timeenrolled, $prev->timeenrolled);
+            // Use lowest (oldest) timeenrolled that is not 0
+            if ($prev->timeenrolled) {
+                $current->timeenrolled = min($current->timeenrolled, $prev->timeenrolled);
+            }
         }
 
         // Move current record to previous

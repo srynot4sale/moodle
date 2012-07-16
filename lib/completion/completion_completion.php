@@ -165,12 +165,50 @@ class completion_completion extends data_object {
      * Save course completion status
      *
      * This method creates a course_completions record if none exists
+     * and also calculates the timeenrolled date if null supplied
      * @access  private
      * @return  bool
      */
     private function _save() {
         if ($this->timeenrolled === null) {
-            $this->timeenrolled = 0;
+            global $DB;
+
+            // Get earliest current enrolment start date
+            // This means timeend < now() but non-zero
+            // and we want the lowest non-zero value for timestart
+            $sql = "
+                SELECT
+                    ue.timestart
+                FROM
+                    {user_enrolments} ue
+                JOIN
+                    {enrol} e
+                 ON (e.id = ue.enrolid AND e.courseid = :courseid)
+                WHERE
+                    ue.userid = :userid
+                AND ue.status = :active
+                AND e.status = :enabled
+                AND ue.timeend > 0
+                AND ue.timeend < :now
+                AND ue.timestart > 0
+                ORDER BY
+                    ue.timestart ASC
+            ";
+            $params = array(
+                'enabled'   => ENROL_INSTANCE_ENABLED,
+                'active'    => ENROL_USER_ACTIVE,
+                'userid'    => $this->userid,
+                'courseid'  => $this->course,
+                'now'       => time()
+            );
+
+            if ($enrolments = $DB->get_record_sql($sql, $params, IGNORE_MULTIPLE)) {
+                $this->timeenrolled = $enrolments->timestart;
+            }
+
+            if (!$this->timeenrolled) {
+                $this->timeenrolled = 0;
+            }
         }
 
         // Save record

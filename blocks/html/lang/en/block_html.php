@@ -23,6 +23,7 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['configclasses'] = 'Additional HTML classes<br />(to aid with theming)';
 $string['configcontent'] = 'Content';
 $string['configtitle'] = 'Block title';
 $string['leaveblanktohide'] = 'leave blank to hide the title';

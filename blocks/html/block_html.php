@@ -138,10 +138,14 @@ class block_html extends block_base {
      * @return array
      */
     function html_attributes() {
+        global $CFG;
+
         $attributes = parent::html_attributes();
 
-        if (!empty($this->config->classes)) {
-            $attributes['class'] .= ' '.$this->config->classes;
+        if (!empty($CFG->block_html_allowcustomcssclasses)) {
+            if (!empty($this->config->classes)) {
+                $attributes['class'] .= ' '.$this->config->classes;
+            }
         }
 
         return $attributes;

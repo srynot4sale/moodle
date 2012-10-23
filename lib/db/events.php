@@ -63,6 +63,11 @@ $handlers = array(
         'schedule'          => 'instant'
     ),
 
+    'completion_criteria_calc' => array(
+        'handlerfile'       => '/completion/completion_criteria_completion.php',
+        'handlerfunction'   => 'completion_handle_criteria_calc',
+        'schedule'          => 'instant'
+    ),
 
 /* no more here please, core should not consume any events!!!!!!! */
 );

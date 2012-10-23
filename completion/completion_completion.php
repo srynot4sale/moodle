@@ -104,7 +104,7 @@ class completion_completion extends data_object {
             $this->timeenrolled = $timeenrolled;
         }
 
-        return $this->_save();
+        return $this->aggregate();
     }
 
     /**
@@ -118,9 +118,6 @@ class completion_completion extends data_object {
 
         $timenow = time();
 
-        // Set reaggregate flag
-        $this->reaggregate = $timenow;
-
         if (!$this->timestarted) {
 
             if (!$timestarted) {
@@ -130,7 +127,7 @@ class completion_completion extends data_object {
             $this->timestarted = $timestarted;
         }
 
-        return $this->_save();
+        return $this->aggregate();
     }
 
     /**
@@ -165,6 +162,12 @@ class completion_completion extends data_object {
         // Save record
         if ($result = $this->_save()) {
             events_trigger('course_completed', $this->get_record_data());
+
+            $eventdata = new stdClass();
+            $eventdata->criteriatype = COMPLETION_CRITERIA_TYPE_COURSE;
+            $eventdata->courseinstance = $this->course;
+            $eventdata->userid = $this->userid;
+            events_trigger('completion_criteria_calc', $eventdata);
         }
 
         return $result;
@@ -247,6 +250,152 @@ class completion_completion extends data_object {
             }
 
             return $this->insert();
+        }
+    }
+
+    /**
+     * Aggregate completion
+     */
+    public function aggregate() {
+        // Check if already complete
+        if ($this->timecompleted) {
+            return $this->_save();
+        }
+
+        // Cached course completion enabled and aggregation method
+        static $courses;
+        if (!is_array($courses)) {
+            $courses = array();
+        }
+
+        if (!isset($courses[$this->course])) {
+            $c = new stdClass();
+            $c->id = $this->course;
+            $info = new completion_info($c);
+            $courses[$this->course] = new stdClass();
+            $courses[$this->course]->enabled = $info->is_enabled();
+            $courses[$this->course]->agg = $info->get_aggregation_method();
+        }
+
+        // No need to do this if completion is disabled
+        if (!$courses[$this->course]->enabled) {
+            return false;
+        }
+
+        global $DB;
+
+        // Get user's completions
+        $completion_sql = "
+            SELECT
+                cr.id AS criteriaid,
+                cr.criteriatype,
+                co.timecompleted,
+                a.method AS agg_method
+            FROM
+                {course_completion_criteria} cr
+            LEFT JOIN
+                {course_completion_crit_compl} co
+             ON co.criteriaid = cr.id
+            AND co.userid = :userid
+            LEFT JOIN
+                {course_completion_aggr_methd} a
+             ON a.criteriatype = cr.criteriatype
+            AND a.course = cr.course
+            WHERE
+                cr.course = :course
+        ";
+
+        $params = array(
+            'userid' => $this->userid,
+            'course' => $this->course
+        );
+
+        $completions = $DB->get_records_sql($completion_sql, $params);
+
+        // If no criteria, no need to aggregate
+        if (empty($completions)) {
+            return $this->_save();
+        }
+
+        // Get aggregation methods
+        $agg_overall    = $courses[$this->course]->agg;
+
+        $overall_status = null;
+        $activity_status = null;
+        $prerequisite_status = null;
+        $role_status = null;
+
+        // Get latest timecompleted
+        $timecompleted = null;
+
+        // Check each of the criteria
+        foreach ($completions as $completion) {
+            $timecompleted = max($timecompleted, $completion->timecompleted);
+            $iscomplete = (bool) $completion->timecompleted;
+
+            // Handle aggregation special cases
+            switch ($completion->criteriatype) {
+                case COMPLETION_CRITERIA_TYPE_ACTIVITY:
+                    completion_status_aggregate($completion->agg_method, $iscomplete, $activity_status);
+                    break;
+
+                case COMPLETION_CRITERIA_TYPE_COURSE:
+                    completion_status_aggregate($completion->agg_method, $iscomplete, $prerequisite_status);
+                    break;
+
+                case COMPLETION_CRITERIA_TYPE_ROLE:
+                    completion_status_aggregate($completion->agg_method, $iscomplete, $role_status);
+                    break;
+
+                default:
+                    completion_status_aggregate($agg_overall, $iscomplete, $overall_status);
+            }
+        }
+
+        // Include role criteria aggregation in overall aggregation
+        if ($role_status !== null) {
+            completion_status_aggregate($agg_overall, $role_status, $overall_status);
+        }
+
+        // Include activity criteria aggregation in overall aggregation
+        if ($activity_status !== null) {
+            completion_status_aggregate($agg_overall, $activity_status, $overall_status);
+        }
+
+        // Include prerequisite criteria aggregation in overall aggregation
+        if ($prerequisite_status !== null) {
+            completion_status_aggregate($agg_overall, $prerequisite_status, $overall_status);
+        }
+
+        // If overall aggregation status is true, mark course complete for user
+        if ($overall_status) {
+            return $this->mark_complete($timecompleted);
+        } else {
+            return $this->_save();
+        }
+    }
+}
+
+
+/**
+ * Aggregate criteria status's as per configured aggregation method
+ *
+ * @param int $method COMPLETION_AGGREGATION_* constant
+ * @param bool $data Criteria completion status
+ * @param bool|null $state Aggregation state
+ */
+function completion_status_aggregate($method, $data, &$state) {
+    if ($method == COMPLETION_AGGREGATION_ALL) {
+        if ($data && $state !== false) {
+            $state = true;
+        } else {
+            $state = false;
+        }
+    } elseif ($method == COMPLETION_AGGREGATION_ANY) {
+        if ($data) {
+            $state = true;
+        } else if (!$data && $state === null) {
+            $state = false;
         }
     }
 }

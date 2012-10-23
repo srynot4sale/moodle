@@ -51,6 +51,18 @@ $handlers = array(
         'internal'         => 0,
     ),
 
+    'completion_start_bulk' => array (
+        'handlerfile'       => '/completion/cron.php',
+        'handlerfunction'   => 'completion_handle_start_bulk',
+        'schedule'          => 'cron'
+    ),
+
+    'user_enrolled' => array (
+        'handlerfile'       => '/completion/completion_completion.php',
+        'handlerfunction'   => 'completion_handle_start',
+        'schedule'          => 'instant'
+    ),
+
 
 /* no more here please, core should not consume any events!!!!!!! */
 );

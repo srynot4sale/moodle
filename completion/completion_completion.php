@@ -154,6 +154,11 @@ class completion_completion extends data_object {
             $timecomplete = time();
         }
 
+        // Set time started
+        if (!$this->timestarted) {
+            $this->timestarted = $timecomplete;
+        }
+
         // Set time complete
         $this->timecompleted = $timecomplete;
 
@@ -169,18 +174,68 @@ class completion_completion extends data_object {
      * Save course completion status
      *
      * This method creates a course_completions record if none exists
+     * and also calculates the timeenrolled date if null supplied
      * @access  private
      * @return  bool
      */
     private function _save() {
-        if ($this->timeenrolled === null) {
+        // Make sure timeenrolled is not null
+        if (!$this->timeenrolled) {
             $this->timeenrolled = 0;
         }
 
         // Save record
         if ($this->id) {
+            // Update
             return $this->update();
         } else {
+            // Create new
+            if (!$this->timeenrolled) {
+                global $DB;
+
+                // Get earliest current enrolment start date
+                // This means timeend < now() but non-zero
+                // and we want the lowest non-zero value for timestart
+                $sql = "
+                    SELECT
+                        ue.timestart
+                    FROM
+                        {user_enrolments} ue
+                    JOIN
+                        {enrol} e
+                    ON (e.id = ue.enrolid AND e.courseid = :courseid)
+                    WHERE
+                        ue.userid = :userid
+                    AND ue.status = :active
+                    AND e.status = :enabled
+                    AND (
+                        ue.timeend = 0
+                     OR ue.timeend > :now
+                    )
+                    AND ue.timeend < :now2
+                    AND ue.timestart > 0
+                    ORDER BY
+                        ue.timestart ASC
+                ";
+                $params = array(
+                    'enabled'   => ENROL_INSTANCE_ENABLED,
+                    'active'    => ENROL_USER_ACTIVE,
+                    'userid'    => $this->userid,
+                    'courseid'  => $this->course,
+                    'now'       => time(),
+                    'now2'      => time()
+                );
+
+                if ($enrolments = $DB->get_record_sql($sql, $params, IGNORE_MULTIPLE)) {
+                    $this->timeenrolled = $enrolments->timestart;
+                }
+
+                // Make sure timeenrolled is not null
+                if (!$this->timeenrolled) {
+                    $this->timeenrolled = 0;
+                }
+            }
+
             // Make sure reaggregate field is not null
             if (!$this->reaggregate) {
                 $this->reaggregate = 0;
@@ -194,4 +249,54 @@ class completion_completion extends data_object {
             return $this->insert();
         }
     }
+}
+
+
+/**
+ * Triggered by the user_enrolled event, this function
+ * creates a completion_completion record for the user if
+ * completion is set up for this course
+ *
+ * @param   object      $eventdata
+ * @return  boolean
+ */
+function completion_handle_start($eventdata) {
+    global $DB, $CFG;
+    require_once "{$CFG->libdir}/completionlib.php";
+
+    // Load course
+    if (!$course = $DB->get_record('course', array('id' => $eventdata->courseid))) {
+        debugging('Could not load course id '.$evenddata->courseid);
+        return true;
+    }
+
+    // Create completion object
+    $cinfo = new completion_info($course);
+
+    // Check completion is enabled for this site and course
+    if (!$cinfo->is_enabled()) {
+        return true;
+    }
+
+    // If completion not set to start on enrollment, do nothing
+    if (empty($course->completionstartonenrol)) {
+        return true;
+    }
+
+    // Create completion record
+    $data = array(
+        'userid'    => $eventdata->userid,
+        'course'    => $course->id
+    );
+    $completion = new completion_completion($data);
+
+    // Update record
+    $completion->timeenrolled = $eventdata->timestart;
+    if (!empty($course->completionstartonenrol)) {
+        $completion->mark_inprogress($completion->timeenrolled);
+    } else {
+        $completion->mark_enrolled();
+    }
+
+    return true;
 }

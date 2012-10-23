@@ -51,6 +51,11 @@ $handlers = array(
         'internal'         => 0,
     ),
 
+    'completion_criteria_calc' => array(
+        'handlerfile'       => '/completion/completion_criteria_completion.php',
+        'handlerfunction'   => 'completion_handle_criteria_calc',
+        'schedule'          => 'instant'
+    ),
 
 /* no more here please, core should not consume any events!!!!!!! */
 );
@@ -83,6 +88,7 @@ user_enrol_modified - object record from user_enrolments table + courseid,enrol
 user_unenrolled - object record from user_enrolments table + courseid,enrol,lastenrol
 
 completion_criteria_change - object containing course record and startonenrol status
+completion_criteria_calc - object containing course_completion_crit_compl record
 
 ==== cohort related events ===
 

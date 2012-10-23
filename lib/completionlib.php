@@ -483,7 +483,7 @@ class completion_info {
      * @return void
      */
     public function update_state($cm, $possibleresult=COMPLETION_UNKNOWN, $userid=0) {
-        global $USER, $SESSION;
+        global $USER, $SESSION, $DB;
 
         // Do nothing if completion is not enabled for that activity
         if (!$this->is_enabled($cm)) {
@@ -522,6 +522,17 @@ class completion_info {
             $current->completionstate = $newstate;
             $current->timemodified    = time();
             $this->internal_set_data($cm, $current);
+        }
+
+        // Notify course completion
+        if (in_array($newstate, array(COMPLETION_COMPLETE, COMPLETION_COMPLETE_PASS))) {
+            $eventdata = new stdClass();
+            $eventdata->criteriatype = COMPLETION_CRITERIA_TYPE_ACTIVITY;
+            $eventdata->moduleinstance = $cm->id;
+            $eventdata->userid = $userid ? $userid : $USER->id;
+            $eventdata->course = $this->course->id;
+            $eventdata->module = $DB->get_field('modules', 'name', array('id' => $cm->module));
+            events_trigger('completion_criteria_calc', $eventdata);
         }
     }
 

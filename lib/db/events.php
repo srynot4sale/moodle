@@ -82,6 +82,8 @@ user_enrolled - object record from user_enrolments table + courseid,enrol
 user_enrol_modified - object record from user_enrolments table + courseid,enrol
 user_unenrolled - object record from user_enrolments table + courseid,enrol,lastenrol
 
+completion_criteria_change - object containing course record and startonenrol status
+
 ==== cohort related events ===
 
 

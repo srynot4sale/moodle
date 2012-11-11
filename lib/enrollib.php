@@ -27,6 +27,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once("{$CFG->libdir}/completionlib.php");
+
 /** Course enrol instance enabled. (used in enrol->status) */
 define('ENROL_INSTANCE_ENABLED', 0);
 
@@ -1297,6 +1299,8 @@ abstract class enrol_plugin {
             $ue->courseid  = $courseid;
             $ue->enrol     = $name;
             events_trigger('user_enrolled', $ue);
+            // trigger course completion start
+            completion_start_user($courseid, $userid, $timestart);
         } else if ($updated) {
             $ue->courseid  = $courseid;
             $ue->enrol     = $name;

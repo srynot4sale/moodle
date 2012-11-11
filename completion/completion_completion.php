@@ -25,7 +25,8 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-require_once($CFG->dirroot.'/completion/data_object.php');
+require_once("{$CFG->dirroot}/completion/data_object.php");
+require_once("{$CFG->libdir}/completionlib.php");
 
 /**
  * Course completion status for a particular user/course
@@ -154,6 +155,11 @@ class completion_completion extends data_object {
             $timecomplete = time();
         }
 
+        // Set time started
+        if (!$this->timestarted) {
+            $this->timestarted = $timecomplete;
+        }
+
         // Set time complete
         $this->timecompleted = $timecomplete;
 
@@ -169,18 +175,68 @@ class completion_completion extends data_object {
      * Save course completion status
      *
      * This method creates a course_completions record if none exists
+     * and also calculates the timeenrolled date if the record is being
+     * created
+     *
      * @access  private
      * @return  bool
      */
     private function _save() {
-        if ($this->timeenrolled === null) {
+        // Make sure timeenrolled is not null
+        if (!$this->timeenrolled) {
             $this->timeenrolled = 0;
         }
 
         // Save record
         if ($this->id) {
+            // Update
             return $this->update();
         } else {
+            // Create new
+            if (!$this->timeenrolled) {
+                global $DB;
+
+                // Get earliest current enrolment start date
+                // This means timeend > now() and timestart < now()
+                $sql = "
+                    SELECT
+                        ue.timestart
+                    FROM
+                        {user_enrolments} ue
+                    JOIN
+                        {enrol} e
+                    ON (e.id = ue.enrolid AND e.courseid = :courseid)
+                    WHERE
+                        ue.userid = :userid
+                    AND ue.status = :active
+                    AND e.status = :enabled
+                    AND (
+                        ue.timeend = 0
+                     OR ue.timeend > :now
+                    )
+                    AND ue.timestart < :now2
+                    ORDER BY
+                        ue.timestart ASC
+                ";
+                $params = array(
+                    'enabled'   => ENROL_INSTANCE_ENABLED,
+                    'active'    => ENROL_USER_ACTIVE,
+                    'userid'    => $this->userid,
+                    'courseid'  => $this->course,
+                    'now'       => time(),
+                    'now2'      => time()
+                );
+
+                if ($enrolments = $DB->get_record_sql($sql, $params, IGNORE_MULTIPLE)) {
+                    $this->timeenrolled = $enrolments->timestart;
+                }
+
+                // If no timeenrolled could be found, use current time
+                if (!$this->timeenrolled) {
+                    $this->timeenrolled = time();
+                }
+            }
+
             // Make sure reaggregate field is not null
             if (!$this->reaggregate) {
                 $this->reaggregate = 0;
@@ -194,4 +250,136 @@ class completion_completion extends data_object {
             return $this->insert();
         }
     }
+}
+
+
+/**
+ * This function is run when a user is enrolled in the course
+ * and creates a completion_completion record for the user if
+ * completion is enabled for this course
+ *
+ * @param   object      $eventdata
+ * @return  boolean
+ */
+function completion_start_user($eventdata) {
+    global $DB;
+
+    $courseid = $eventdata->courseid;
+    $userid = $eventdata->userid;
+    $timestart = $eventdata->timestart;
+
+    // Load course
+    if (!$course = $DB->get_record('course', array('id' => $courseid))) {
+        debugging('Could not load course id '.$courseid);
+        return true;
+    }
+
+    // Create completion object
+    $cinfo = new completion_info($course);
+
+    // Check completion is enabled for this site and course
+    if (!$cinfo->is_enabled()) {
+        return false;
+    }
+
+    // If completion not set to start on enrollment, do nothing
+    if (empty($course->completionstartonenrol)) {
+        return false;
+    }
+
+    // Create completion record
+    $data = array(
+        'userid'    => $userid,
+        'course'    => $course->id
+    );
+    $completion = new completion_completion($data);
+    if (!$completion->timeenrolled) {
+        $completion->timeenrolled = $timestart;
+    }
+
+    // Update record
+    if (!empty($course->completionstartonenrol)) {
+        $completion->mark_inprogress($timestart);
+    } else {
+        $completion->mark_enrolled();
+    }
+
+    return true;
+}
+
+
+/**
+ * Triggered by changing course completion criteria, this function
+ * bulk marks users as started in the course completion system.
+ *
+ * @param   integer     $courseid       Course ID
+ * @return  bool
+ */
+function completion_start_user_bulk($courseid) {
+    global $DB;
+
+    /**
+     * A quick explaination of this horrible looking query
+     *
+     * It's purpose is to locate all the active participants
+     * of a course with course completion enabled.
+     *
+     * We want to record the user's enrolment start time for the
+     * course. This gets tricky because there can be multiple
+     * enrolment plugins active in a course, hence the fun
+     * case statement.
+     */
+    $sql = "
+        INSERT INTO
+            {course_completions}
+            (course, userid, timeenrolled, timestarted, reaggregate)
+        SELECT
+            c.id AS course,
+            ue.userid AS userid,
+            CASE
+                WHEN MIN(ue.timestart) <> 0
+                THEN MIN(ue.timestart)
+                ELSE ?
+            END,
+            CASE
+                WHEN c.completionstartonenrol = 1
+                THEN ?
+                ELSE 0
+            END,
+            ?
+        FROM
+            {user_enrolments} ue
+        INNER JOIN
+            {enrol} e
+         ON e.id = ue.enrolid
+        INNER JOIN
+            {course} c
+         ON c.id = e.courseid
+        LEFT JOIN
+            {course_completions} crc
+         ON crc.course = c.id
+        AND crc.userid = ue.userid
+        WHERE
+            c.enablecompletion = 1
+        AND crc.id IS NULL
+        AND c.id = ?
+        AND ue.status = ?
+        AND e.status = ?
+        AND (ue.timeend > ? OR ue.timeend = 0)
+        GROUP BY
+            c.id,
+            ue.userid
+    ";
+
+    $now = time();
+    $params = array(
+        $now,
+        $now,
+        $now,
+        $courseid,
+        ENROL_USER_ACTIVE,
+        ENROL_INSTANCE_ENABLED,
+        $now
+    );
+    $affected = $DB->execute($sql, $params, true);
 }

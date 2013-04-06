@@ -110,9 +110,12 @@ table.flexible .r1 {background-color: #FAFAFA;}
 #page-admin-lang .translator .bothmissing {background-color: #EF6868;}
 #page-admin-lang .translator .mastermissing {background-color: #FEFF7F;}
 #page-admin-lang .translator .localdifferent {background-color: #AAFFAA;}
-.environmenttable .error {background-color : red;color : inherit;}
-.environmenttable .warn {background-color : yellow;}
-.environmenttable .ok {background-color : lime;}
+.environmenttable td {vertical-align: middle !important;}
+.environmenttable td.info {padding: 0;}
+.environmenttable td.info span {display: block; padding: 0.5em 0.5em; margin: 0;}
+.environmenttable .error {background-color: red; color: inherit;}
+.environmenttable .warn {background-color: yellow;}
+.environmenttable .ok {background-color: #9e9;}
 #page-admin-uploaduser .uuinfo {background-color: #8e8;}
 #page-admin-uploaduser .uuwarning {background-color: #ee8;}
 #page-admin-uploaduser .uuerror {background-color: #e99;}

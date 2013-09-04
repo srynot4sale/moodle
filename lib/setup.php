@@ -116,7 +116,18 @@ if (!defined('BEHAT_SITE_RUNNING') && !empty($CFG->behat_dataroot) &&
     $switchcompletely = !empty($CFG->behat_switchcompletely) && php_sapi_name() !== 'cli';
     $builtinserver = php_sapi_name() === 'cli-server';
     $behatrunning = defined('BEHAT_TEST');
-    $testenvironmentrequested = $switchcompletely || $builtinserver || $behatrunning;
+
+    $behatwww = false;
+    if (isset($_SERVER['HTTP_HOST']) && !empty($CFG->behat_wwwroot)) {
+        $rurl = parse_url($_SERVER['HTTP_HOST'].':'.$_SERVER['SERVER_PORT']);
+        $wwwroot = parse_url($CFG->behat_wwwroot.'/');
+        if (empty($wwwroot['port'])) {
+            $wwwroot['port'] = 80;
+        }
+        $behatwww = ($rurl['host'] == $wwwroot['host']) && ($rurl['port'] == $wwwroot['port']);
+    }
+
+    $testenvironmentrequested = $switchcompletely || $builtinserver || $behatrunning || $behatwww;
 
     // Only switch to test environment if it has been enabled.
     $testenvironmentenabled = file_exists($CFG->behat_dataroot . '/behat/test_environment_enabled.txt');

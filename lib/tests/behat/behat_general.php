@@ -58,6 +58,15 @@ class behat_general extends behat_base {
     }
 
     /**
+     * Runs the cron
+     *
+     * @Given /^I run the cron$/
+     */
+    public function i_run_the_cron() {
+        $this->getSession()->visit($this->locate_path('/admin/cron.php'));
+    }
+
+    /**
      * Reloads the current page.
      *
      * @Given /^I reload the page$/

@@ -142,10 +142,24 @@ function testing_update_composer_dependencies() {
     $cwd = getcwd();
 
     // Dirroot.
-    chdir(__DIR__ . '/../..');
+    $dirroot = dirname(dirname(__DIR__));
+    chdir($dirroot);
+
+    // Check if writeable
+    if (!is_writeable($dirroot)) {
+
+        // If composer doesn't exist, just die
+        if (!file_exists("{$dirroot}/composer.phar")) {
+            echo("composer.phar does not exist and dirroot is unwriteable - cannot continue\n");
+            exit(1);
+        }
+
+        chdir($cwd);
+        return;
+    }
 
     // Download composer.phar if we can.
-    if (!file_exists(__DIR__ . '/../../composer.phar')) {
+    if (!file_exists("{$dirroot}/composer.phar")) {
         passthru("curl http://getcomposer.org/installer | php", $code);
         if ($code != 0) {
             exit($code);

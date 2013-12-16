@@ -49,11 +49,11 @@ class behat_form_checkbox extends behat_form_field {
 
         if (!empty($value) && !$this->field->isChecked()) {
             // Check it if it should be checked and it is not.
-            $this->field->click();
+            $this->field->check();
 
         } else if (empty($value) && $this->field->isChecked()) {
             // Uncheck if it is checked and shouldn't.
-            $this->field->click();
+            $this->field->check();
         }
     }
 

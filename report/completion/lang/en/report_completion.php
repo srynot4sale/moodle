@@ -24,10 +24,14 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['activitiescompleted'] = 'Activities completed';
 $string['completion:view'] = 'View course completion report';
 $string['completiondate'] = 'Completion date';
+$string['dependenciescompleted'] = 'Dependent courses completed';
 $string['id'] = 'ID';
 $string['name'] = 'Name';
+$string['nocompletionaccessible'] = 'No completion info is available for this course';
+$string['nocompletionsaccessible'] = 'No completion info is available for any enrolled courses';
 $string['page-report-completion-x'] = 'Any completion report';
 $string['page-report-completion-index'] = 'Course completion report';
 $string['page-report-completion-user'] = 'User course completion report';

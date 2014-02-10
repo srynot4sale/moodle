@@ -17,9 +17,10 @@
 /**
  * Display user completion report
  *
+ * @author     Aaron Barnes <aaronb@catalyst.net.nz>
  * @package    report
  * @subpackage completion
- * @copyright  2009 Catalyst IT Ltd
+ * @copyright  2009-2013 Catalyst IT Ltd
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -27,8 +28,8 @@ require('../../config.php');
 require_once($CFG->dirroot.'/report/completion/lib.php');
 require_once($CFG->libdir.'/completionlib.php');
 
-$userid   = required_param('id', PARAM_INT);
-$courseid = required_param('course', PARAM_INT);
+$userid   = optional_param('id', $USER->id, PARAM_INT);
+$courseid = optional_param('course', $SITE->id, PARAM_INT);
 
 $user = $DB->get_record('user', array('id'=>$userid, 'deleted'=>0), '*', MUST_EXIST);
 $course = $DB->get_record('course', array('id'=>$courseid), '*', MUST_EXIST);
@@ -45,11 +46,6 @@ if ($USER->id != $user->id and has_capability('moodle/user:viewuseractivitiesrep
     require_login($course);
 }
 
-if (!report_completion_can_access_user_report($user, $course, true)) {
-    // this should never happen
-    error('Can not access user completion report');
-}
-
 add_to_log($course->id, 'course', 'report completion', "report/completion/user.php?id=$user->id&course=$course->id", $course->id);
 
 $stractivityreport = get_string('activityreport');
@@ -64,91 +60,81 @@ echo $OUTPUT->header();
 
 
 // Display course completion user report
+if ($course->id !== $SITE->id) {
 
-// Grab all courses the user is enrolled in and their completion status
-$sql = "
-    SELECT DISTINCT
-        c.id AS id
-    FROM
-        {course} c
-    INNER JOIN
-        {context} con
-     ON con.instanceid = c.id
-    INNER JOIN
-        {role_assignments} ra
-     ON ra.contextid = con.id
-    INNER JOIN
-        {enrol} e
-     ON c.id = e.courseid
-    INNER JOIN
-        {user_enrolments} ue
-     ON e.id = ue.enrolid AND ra.userid = ue.userid
-    AND ra.userid = {$user->id}
-";
+    $enrolled_courses = array();
 
-// Get roles that are tracked by course completion
-if ($roles = $CFG->gradebookroles) {
-    $sql .= '
-        AND ra.roleid IN ('.$roles.')
-    ';
-}
-
-$sql .= '
-    WHERE
-        con.contextlevel = '.CONTEXT_COURSE.'
-    AND c.enablecompletion = 1
-';
-
-
-// If we are looking at a specific course
-if ($course->id != 1) {
-    $sql .= '
-        AND c.id = '.(int)$course->id.'
-    ';
-}
-
-// Check if result is empty
-$rs = $DB->get_recordset_sql($sql);
-if (!$rs->valid()) {
-
-    if ($course->id != 1) {
-        $error = get_string('nocompletions', 'report_completion'); // TODO: missing string
-    } else {
-        $error = get_string('nocompletioncoursesenroled', 'report_completion'); // TODO: missing string
+    $c_info = new completion_info($course);
+    if ($c_info->is_enabled() && $c_info->is_tracked_user($user->id)) {
+        $enrolled_courses[$course->id] = $course;
     }
 
-    echo $OUTPUT->notification($error);
-    $rs->close(); // not going to loop (but break), close rs
-    echo $OUTPUT->footer();
-    die();
+} else {
+
+    // Grab all courses the user is enrolled in (even if inactive)
+    $enrolled_courses = enrol_get_users_courses($user->id, false, '*');
+    foreach ($enrolled_courses as $e) {
+        if (!$e->enablecompletion) {
+            unset($enrolled_courses[$e->id]);
+            continue;
+        }
+
+        if (!is_enrolled(context_course::instance($e->id), $user->id, 'moodle/course:isincompletionreports', true)) {
+            unset($enrolled_courses[$e->id]);
+        }
+    }
 }
+
 
 // Categorize courses by their status
 $courses = array(
     'inprogress'    => array(),
     'complete'      => array(),
-    'unstarted'     => array()
+    'notyetstarted' => array()
 );
 
 // Sort courses by the user's status in each
-foreach ($rs as $course_completion) {
-    $c_info = new completion_info((object)$course_completion);
+foreach ($enrolled_courses as $e) {
+
+    if (!report_completion_can_access_user_report($user, $e)) {
+        continue;
+    }
+
+    $c_info = new completion_info($e);
 
     // Is course complete?
-    $coursecomplete = $c_info->is_course_complete($user->id);
+    $params = array(
+        'userid'  => $user->id,
+        'course'  => $e->id
+    );
+    $ccompletion = new completion_completion($params);
+
+    $coursecomplete = $ccompletion->is_complete();
 
     // Has this user completed any criteria?
     $criteriacomplete = $c_info->count_course_user_data($user->id);
 
     if ($coursecomplete) {
         $courses['complete'][] = $c_info;
-    } else if ($criteriacomplete) {
-        $courses['inprogress'][] = $c_info;
+    } else if (!$criteriacomplete && !$ccompletion->timestarted) {
+        $courses['notyetstarted'][] = $c_info;
     } else {
-        $courses['unstarted'][] = $c_info;
+        $courses['inprogress'][] = $c_info;
     }
 }
-$rs->close(); // after loop, close rs
+
+if (empty($courses['complete']) && empty($courses['notyetstarted']) && empty($courses['inprogress'])) {
+
+    if ($course->id != $SITE->id) {
+        $error = get_string('nocompletionaccessible', 'report_completion');
+    } else {
+        $error = get_string('nocompletionsaccessible', 'report_completion');
+    }
+
+    echo $OUTPUT->notification($error);
+    echo $OUTPUT->footer();
+    die();
+}
 
 // Loop through course status groups
 foreach ($courses as $type => $infos) {
@@ -156,13 +142,13 @@ foreach ($courses as $type => $infos) {
     // If there are courses with this status
     if (!empty($infos)) {
 
-        echo '<h1 align="center">'.get_string($type, 'report_completion').'</h1>';
+        echo '<h1 align="center">'.get_string($type, 'completion').'</h1>';
         echo '<table class="generaltable boxaligncenter">';
         echo '<tr class="ccheader">';
         echo '<th class="c0 header" scope="col">'.get_string('course').'</th>';
         echo '<th class="c1 header" scope="col">'.get_string('requiredcriteria', 'completion').'</th>';
         echo '<th class="c2 header" scope="col">'.get_string('status').'</th>';
-        echo '<th class="c3 header" scope="col" width="15%">'.get_string('info').'</th>';
+        echo '<th class="c3 header" scope="col">'.get_string('info').'</th>';
 
         if ($type === 'complete') {
             echo '<th class="c4 header" scope="col">'.get_string('completiondate', 'report_completion').'</th>';
@@ -221,7 +207,9 @@ foreach ($courses as $type => $infos) {
 
                 $row = array();
                 $row['title'] = $criteria->get_title();
+                $row['details'] = $criteria->get_details($completion);
                 $row['status'] = $completion->get_status();
+                $row['complete'] = $complete;
                 $rows[] = $row;
             }
 
@@ -229,8 +217,9 @@ foreach ($courses as $type => $infos) {
             if (!empty($activities)) {
 
                 $row = array();
-                $row['title'] = get_string('activitiescomplete', 'report_completion');
+                $row['title'] = get_string('activitiescompleted', 'report_completion');
                 $row['status'] = $activities_complete.' of '.count($activities);
+                $row['complete'] = ($activities_complete == count($activities));
                 $rows[] = $row;
             }
 
@@ -238,8 +227,9 @@ foreach ($courses as $type => $infos) {
             if (!empty($prerequisites)) {
 
                 $row = array();
-                $row['title'] = get_string('prerequisitescompleted', 'completion');
+                $row['title'] = get_string('dependenciescompleted', 'report_completion');
                 $row['status'] = $prerequisites_complete.' of '.count($prerequisites);
+                $row['complete'] = ($prerequisites_complete == count($prerequisites));
                 array_splice($rows, 0, 0, array($row));
             }
 
@@ -272,12 +262,13 @@ foreach ($courses as $type => $infos) {
                         echo $row['status'];
                 }
 
-                // Display link on first row
-                echo '</td><td class="c3">';
-                if ($first_row) {
-                    echo '<a href="'.$CFG->wwwroot.'/blocks/completionstatus/details.php?course='.$c_course->id.'&user='.$user->id.'">'.get_string('detailedview', 'report_completion').'</a>';
-                }
                 echo '</td>';
+
+                if ($first_row) {
+                    echo '<td class="c3"><a href="'.$CFG->wwwroot.'/blocks/completionstatus/details.php?course='.$c_course->id.'&user='.$user->id.'">'.get_string('moredetails', 'completion').'</a></td>';
+                } else {
+                    echo '<td class="c3">&nbsp;</td>';
+                }
 
                 // Display completion date for completed courses on first row
                 if ($type === 'complete' && $first_row) {

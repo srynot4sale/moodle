@@ -55,8 +55,6 @@ function report_completion_extend_navigation_course($navigation, $course, $conte
  */
 function report_completion_extend_navigation_user($navigation, $user, $course) {
 
-    return; //TODO: this plugin was not linked from navigation in 2.0, let's keep it that way for now --skodak
-
     if (report_completion_can_access_user_report($user, $course)) {
         $url = new moodle_url('/report/completion/user.php', array('id'=>$user->id, 'course'=>$course->id));
         $navigation->add(get_string('coursecompletion'), $url);
@@ -73,14 +71,23 @@ function report_completion_extend_navigation_user($navigation, $user, $course) {
  * @return bool
  */
 function report_completion_can_access_user_report($user, $course) {
-    global $USER, $CFG;
+    global $USER, $CFG, $SITE;
 
     if (empty($CFG->enablecompletion)) {
         return false;
     }
 
-    if ($course->id != SITEID and !$course->enablecompletion) {
-        return;
+    if ($course->id == $SITE->id) {
+        return true;
+    }
+
+    $cinfo = new completion_info($course);
+    if (!$cinfo->is_enabled()) {
+        return false;
+    }
+
+    if (!$cinfo->is_tracked_user($user->id)) {
+        return false;
     }
 
     $coursecontext = context_course::instance($course->id);

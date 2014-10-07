@@ -3160,19 +3160,8 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
     $modcontext = context_module::instance($cm->id);
 
     // Cache the check to see if users can grade these posts due to mod/forum:grade capability.
-    static $advancedgrading;
-    $showgradinglink = false;
-    if ($showgrade) {
-        if (!empty($advancedgrading[$forum->id])) {
-            $showgradinglink = true;
-        } else if (has_capability('mod/forum:grade', $modcontext)) {
-            $gradingman = get_grading_manager($modcontext, 'mod_forum', 'posts');
-            $method = $gradingman->get_active_method();
-            if (!empty($method)) {
-                $advancedgrading[$forum->id] = true;
-                $showgradinglink = true;
-            }
-        }
+    if ($forum->grade > 0 && has_capability('mod/forum:grade', $modcontext)) {
+        $showgradinglink = true;
     }
 
     $post->course = $course->id;
@@ -3490,14 +3479,10 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
     }
 
     if ($showgradinglink || (isset($post->grade) && $post->grade >= 0 && $USER->id === $postuser->id)) {
-        if ($showgradinglink) {
-            $url = new moodle_url('/mod/forum/grade.php', array('id' => $cm->id, 'postid' => $post->id, 'userid' => $post->userid));
-            $grade = html_writer::tag('a', get_string('grade')." ", array('href' => $url));
-            if ($post->grade >= 0) {
-                $grade .= $post->grade;
-            }
-        } else {
-            $grade = get_string('grade').": ".$post->grade;
+        $url = new moodle_url('/mod/forum/grade.php', array('id' => $cm->id, 'postid' => $post->id, 'userid' => $post->userid));
+        $grade = html_writer::tag('a', get_string('grade')." ", array('href' => $url));
+        if ($post->grade >= 0) {
+            $grade .= $post->grade;
         }
         $output .= html_writer::tag('div', $grade, array('class'=>'forum-post-grade'));
     }
@@ -7778,10 +7763,10 @@ function get_forum_grading_manager($context_or_areaid = null, $component = null,
  * @param bool $gradingdisabled
  * @return mixed gradingform_instance|null $gradinginstance
  */
-function mod_forum_get_grading_instance($userid, $grade, $gradingdisabled, $context, $area = 'posts') {
+function mod_forum_get_grading_instance($forum, $userid, $grade, $gradingdisabled, $context, $area = 'posts') {
     global $USER;
 
-    $grademenu = make_grades_menu(100); // TODO: allow grade range to be set.
+    $grademenu = make_grades_menu($forum->grade);
     $allowgradedecimals = false;
 
     $advancedgradingwarning = false;
@@ -7828,7 +7813,7 @@ function forum_apply_grade_to_user($formdata, $userid, $area) {
     $forum = $DB->get_record('forum', array('id' => $formdata->forumid), '*', MUST_EXIST);
     $forum->cmidnumber = $formdata->cmid;
     $grade = forum_get_user_grade($userid, true, $formdata->forumid, $formdata->postid);
-    $gradinginstance = mod_forum_get_grading_instance($userid, $grade, false, $context, $area);
+    $gradinginstance = mod_forum_get_grading_instance($forum, $userid, $grade, false, $context, $area);
     if ($gradinginstance) {
         $grade->grade = $gradinginstance->submit_and_get_grade($formdata->advancedgrading, $grade->id);
         $result = $DB->update_record('forum_grades', $grade);

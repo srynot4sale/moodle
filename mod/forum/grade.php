@@ -25,6 +25,7 @@ require_once($CFG->dirroot.'/mod/forum/gradeform.php');
 require_once($CFG->dirroot.'/grade/grading/lib.php');
 require_once($CFG->dirroot . '/mod/forum/renderable.php');
 require_once($CFG->dirroot . '/mod/forum/lib.php');
+require_once($CFG->libdir. '/gradelib.php');
 
 $id = required_param('id', PARAM_INT); // Course Module ID.
 $userid = required_param('userid', PARAM_INT); // User id.
@@ -49,8 +50,11 @@ require_course_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 $PAGE->set_context($context);
 
-// Need mod/forum:grade capability.
-require_capability('mod/forum:grade', $context);
+$cangrade = has_capability('mod/forum:grade', $context);
+
+if ($userid !== $USER->id) {
+    require_capability('mod/forum:grade', $context);
+}
 
 // Check advanced grading is enabled for this forum.
 $sql = "contextid = ? AND component = ? AND ". $DB->sql_isnotempty('grading_areas', 'activemethod', true, false);
@@ -84,34 +88,36 @@ if (!empty($postid) && !empty($advancedgrading['posts'])) {
     exit;
 }
 
-$params = array('userid' => $user->id,
-                'context' => $context,
-                'postid' => $postid,
-                'cmid' => $cm->id);
-$data = new stdClass();
-$data->grade = '';
+if ($cangrade) {
 
-$formparams = array($forum, $data, $params);
-$mform = new mod_forum_grade_form(null,
-    $formparams,
-    'post',
-    '',
-    array('class'=>'gradeform'));
+    $params = array('userid' => $user->id,
+        'context' => $context,
+        'postid' => $postid,
+        'cmid' => $cm->id);
+    $data = new stdClass();
+    $data->grade = '';
 
-if ($action === 'submitgrade') {
-    $formdata = $mform->get_data();
-    if ($formdata) {
-        forum_apply_grade_to_user($formdata, $userid, $area);
-        if (!empty($postid)) {
-            $url = new moodle_url('/mod/forum/discuss.php', array('d' => $discussion->id, '#p' => $postid));
-        } else {
-            $url = new moodle_url('/mod/forum/view.php', array('id' => $id));
+    $formparams = array($forum, $data, $params);
+    $mform = new mod_forum_grade_form(null,
+        $formparams,
+        'post',
+        '',
+        array('class' => 'gradeform'));
+
+    if ($action === 'submitgrade') {
+        $formdata = $mform->get_data();
+        if ($formdata) {
+            forum_apply_grade_to_user($formdata, $userid, $area);
+            if (!empty($postid)) {
+                $url = new moodle_url('/mod/forum/discuss.php', array('d' => $discussion->id, '#p' => $postid));
+            } else {
+                $url = new moodle_url('/mod/forum/view.php', array('id' => $id));
+            }
+            redirect($url, get_string('gradesaved', 'forum'), 1);
         }
-        redirect($url, get_string('gradesaved', 'forum'), 1);
     }
+
 }
-
-
 $PAGE->set_title($forum->name);
 $PAGE->set_heading($course->fullname);
 
@@ -119,14 +125,24 @@ $renderer = $PAGE->get_renderer('mod_forum');
 
 
 echo $OUTPUT->header();
-if (!empty($post)) {
+if (!empty($post) && !empty($advancedgrading['forum'])) {
     // Check to see if we should display a link to allow grading all this users posts.
-    if (!empty($advancedgrading['forum'])) {
-        echo $OUTPUT->single_button($PAGE->url, get_string('gradeoverall', 'forum'), 'post');
-    }
+    echo $OUTPUT->single_button($PAGE->url, get_string('gradeoverall', 'forum'), 'post');
+}
+if ($cangrade) {
+    echo $renderer->render(new forum_form('gradingform', $mform));
+} else {
+    $grade = forum_get_user_grade($userid, true, $forum->id, $postid);
+    $gradinginstance = mod_forum_get_grading_instance($forum, $userid, $grade, true, $context, $area);
+    $grades = grade_get_grades($course->id, 'mod', 'forum', $forum->id, $user->id);
+    $gradefordisplay = $gradinginstance->get_controller()->render_grade($PAGE,
+        $grade->id,
+        $grades,
+        '',
+        false);
+    echo $OUTPUT->box($gradefordisplay, 'generalbox advancedgradedisplay');
 }
 
-echo $renderer->render(new forum_form('gradingform', $mform));
 
 if (!empty($post)) {
     forum_print_post($post, $discussion, $forum, $cm, $course);

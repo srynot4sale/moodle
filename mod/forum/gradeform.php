@@ -60,7 +60,7 @@ class mod_forum_grade_form extends moodleform {
         } else {
             $area = "posts";
         }
-        $gradinginstance = mod_forum_get_grading_instance($userid, $grade, $gradingdisabled, $context, $area);
+        $gradinginstance = mod_forum_get_grading_instance($forum, $userid, $grade, $gradingdisabled, $context, $area);
 
         $mform->addElement('header', 'gradeheader', get_string('grade'));
         if ($gradinginstance) {

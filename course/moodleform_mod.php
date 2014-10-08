@@ -617,10 +617,16 @@ abstract class moodleform_mod extends moodleform {
                     // the module defines multiple gradable areas, display a selector
                     // for each of them together with a name of the area
                     $areasgroup = array();
+
                     foreach ($this->current->_advancedgradingdata['areas'] as $areaname => $areadata) {
                         $areasgroup[] = $mform->createElement('select', 'advancedgradingmethod_'.$areaname,
                             $areadata['title'], $this->current->_advancedgradingdata['methods']);
                         $areasgroup[] = $mform->createElement('static', 'advancedgradingareaname_'.$areaname, '', $areadata['title']);
+                        if (!empty($this->current->_advancedgradingdata['aggregates'][$areaname])) {
+                            $areasgroup[] = $mform->createElement('select', 'advancedgradingaggregate_'.$areaname,
+                                '', $this->current->_advancedgradingdata['aggregates'][$areaname]);
+
+                        }
                     }
                     $mform->addGroup($areasgroup, 'advancedgradingmethodsgroup', get_string('gradingmethods', 'core_grading'),
                         array(' ', '<br />'), false);

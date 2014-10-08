@@ -307,6 +307,29 @@ class grading_manager {
         }
     }
 
+    /**
+     * Returns the list of aggregates within gradable areas provided by the given component
+     *
+     * This performs a callback to the library of the relevant plugin to obtain
+     * the list of supported aggregates.
+     *
+     * @param string $component normalized component name
+     * @return array('string' => array('name' => 'string') An array of arrays with aggregate names as keys and descriptions as values.
+     */
+    public static function available_aggregates($component) {
+
+        list($plugintype, $pluginname) = core_component::normalize_component($component);
+
+        if ($component === 'core_grading') {
+            return array();
+
+        } else if ($plugintype === 'mod') {
+            return plugin_callback('mod', $pluginname, 'grading', 'aggregate_list', null, array());
+
+        } else {
+            throw new coding_exception('Unsupported aggregate location');
+        }
+    }
 
     /**
      * Returns the list of gradable areas in the given context and component

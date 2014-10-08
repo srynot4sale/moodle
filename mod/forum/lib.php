@@ -328,6 +328,7 @@ function forum_supports($feature) {
         case FEATURE_SHOW_DESCRIPTION:        return true;
         case FEATURE_ADVANCED_GRADING:        return true;
         case FEATURE_PLAGIARISM:              return true;
+        case FEATURE_SELF_GRADING:            return true;
 
         default: return null;
     }

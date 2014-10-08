@@ -581,5 +581,20 @@ function xmldb_assign_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2014072405, 'assign');
     }
 
+    if ($oldversion < 2014072405.1) {
+
+        // Define field grade to be added to forum.
+        $table = new xmldb_table('assign');
+        $field = new xmldb_field('selfgrade', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'sendstudentnotifications');
+
+        // Conditionally launch add field grade.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Forum savepoint reached.
+        upgrade_mod_savepoint(true, 2014072405.1, 'assign');
+    }
+
     return true;
 }

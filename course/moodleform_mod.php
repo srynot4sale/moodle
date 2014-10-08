@@ -102,6 +102,7 @@ abstract class moodleform_mod extends moodleform {
 
         $this->_features->gradecat          = ($this->_features->outcomes or $this->_features->hasgrades);
         $this->_features->advancedgrading   = plugin_supports('mod', $this->_modname, FEATURE_ADVANCED_GRADING, false);
+        $this->_features->selfgrade         = plugin_supports('mod', $this->_modname, FEATURE_SELF_GRADING, false);
     }
 
     /**
@@ -632,6 +633,11 @@ abstract class moodleform_mod extends moodleform {
                         get_string('gradecategoryonmodform', 'grades'),
                         grade_get_categories_menu($COURSE->id, $this->_outcomesused));
                 $mform->addHelpButton('gradecat', 'gradecategoryonmodform', 'grades');
+            }
+
+            if ($this->_features->selfgrade) {
+                $mform->addElement('selectyesno', 'selfgrade', get_string('selfgrade', 'grades'), 0);
+                $mform->addHelpButton('selfgrade', 'selfgrade', 'grades');
             }
         }
     }

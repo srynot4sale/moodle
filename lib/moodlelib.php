@@ -398,6 +398,8 @@ define('FEATURE_GRADE_OUTCOMES', 'outcomes');
 define('FEATURE_ADVANCED_GRADING', 'grade_advanced_grading');
 /** True if module controls the grade visibility over the gradebook */
 define('FEATURE_CONTROLS_GRADE_VISIBILITY', 'controlsgradevisbility');
+/** Ture if module supports self-grading functions. */
+define('FEATURE_SELF_GRADING', 'selfgrading');
 /** True if module supports plagiarism plugins */
 define('FEATURE_PLAGIARISM', 'plagiarism');
 

@@ -50,10 +50,12 @@ require_course_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 $PAGE->set_context($context);
 
-$cangrade = has_capability('mod/forum:grade', $context);
-
-if ($userid !== $USER->id) {
+$cangrade = false;
+if ($userid != $USER->id) {
     require_capability('mod/forum:grade', $context);
+    $cangrade = true;
+} else if ($forum->selfgrade && $userid == $USER->id) {
+    $cangrade = true;
 }
 
 // Check advanced grading is enabled for this forum.

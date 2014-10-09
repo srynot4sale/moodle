@@ -3161,8 +3161,11 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
 
     $modcontext = context_module::instance($cm->id);
 
+    $showgradinglink = false;
     // Cache the check to see if users can grade these posts due to mod/forum:grade capability.
-    if ($forum->grade > 0 && has_capability('mod/forum:grade', $modcontext)) {
+    // Or if it is the users own post and selfgrading is enabled.
+    if ($forum->grade > 0 && (has_capability('mod/forum:grade', $modcontext) ||
+                              ($forum->selfgrade && $USER->id == $post->userid))) {
         $showgradinglink = true;
     }
 

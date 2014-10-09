@@ -334,24 +334,13 @@ function forum_supports($feature) {
 }
 
 /**
- * Lists all gradable areas for the advanced grading methods framework
+ * Lists all gradable areas for the advanced grading methods gramework
  *
  * @return array('string' => 'string') An array with area names as keys and descriptions as values
  */
 function forum_grading_areas_list() {
     return array('forum' => get_string('gradeforum', 'forum'),
                  'posts' => get_string('gradeposts', 'forum'));
-}
-
-/**
- * Lists all aggregates for grading areas for the advanced grading methods framework
- *
- * @return array('string' => array('name' => 'string') An array of arrays with aggregate names as keys and descriptions as values
- */
-function forum_grading_aggregate_list() {
-    return array('posts' => array('average' => get_string('gradeaverage', 'forum'),
-                                  'highest' => get_string('gradehighest', 'forum'),
-                                  'lowest'  => get_string('gradelowest', 'forum')));
 }
 
 /**

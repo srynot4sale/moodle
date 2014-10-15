@@ -68,6 +68,8 @@ class assign_gradingmessage implements renderable {
     /** @var int $gradingerror should be set true if there was a problem grading */
     public $gradingerror = null;
 
+    public $action = 'grading';
+
     /**
      * Constructor
      * @param string $heading This is the heading to display
@@ -76,12 +78,13 @@ class assign_gradingmessage implements renderable {
      * @param int $coursemoduleid
      * @param int $page This is the current quick grading page
      */
-    public function __construct($heading, $message, $coursemoduleid, $gradingerror = false, $page = null) {
+    public function __construct($heading, $message, $coursemoduleid, $gradingerror = false, $page = null, $action = 'grading') {
         $this->heading = $heading;
         $this->message = $message;
         $this->coursemoduleid = $coursemoduleid;
         $this->gradingerror = $gradingerror;
         $this->page = $page;
+        $this->action = $action;
     }
 
 }

@@ -171,6 +171,7 @@ $string['extensionduedate'] = 'Extension due date';
 $string['extensionnotafterduedate'] = 'Extension date must be after the due date';
 $string['extensionnotafterfromdate'] = 'Extension date must be after the allow submissions from date';
 $string['gradecanbechanged'] = 'Grade can be changed';
+$string['grademysubmission'] = 'Grade my submission';
 $string['gradersubmissionupdatedtext'] = '{$a->username} has updated their assignment submission
 for \'{$a->assignment}\' at {$a->timeupdated}
 

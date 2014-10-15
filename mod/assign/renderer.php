@@ -90,7 +90,7 @@ class mod_assign_renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_assign_gradingmessage(assign_gradingmessage $result) {
-        $urlparams = array('id' => $result->coursemoduleid, 'action'=>'grading');
+        $urlparams = array('id' => $result->coursemoduleid, 'action'=> $result->action);
         if (!empty($result->page)) {
             $urlparams['page'] = $result->page;
         }

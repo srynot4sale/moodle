@@ -173,7 +173,7 @@ abstract class moodleform_mod extends moodleform {
                     // TODO: add a "Mixed categories" text instead of removing elements with no explanation
                     if ($mform->elementExists('gradecat')) {
                         $mform->removeElement('gradecat');
-                        if ($this->_features->rating) {
+                        if ($this->_features->rating && !$this->_features->advancedgrading) {
                             //if supports ratings then the max grade dropdown wasnt added so the grade box can be removed entirely
                             $mform->removeElement('modstandardgrade');
                         }

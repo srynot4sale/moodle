@@ -352,31 +352,8 @@ class core_string_manager_standard implements core_string_manager {
         }
 
         $string = $string[$identifier];
-
         if ($a !== null) {
-            // Process array's and objects (except lang_strings).
-            if (is_array($a) or (is_object($a) && !($a instanceof lang_string))) {
-                $a = (array)$a;
-                $search = array();
-                $replace = array();
-                foreach ($a as $key => $value) {
-                    if (is_int($key)) {
-                        // We do not support numeric keys - sorry!
-                        continue;
-                    }
-                    if (is_array($value) or (is_object($value) && !($value instanceof lang_string))) {
-                        // We support just string or lang_string as value.
-                        continue;
-                    }
-                    $search[]  = '{$a->'.$key.'}';
-                    $replace[] = (string)$value;
-                }
-                if ($search) {
-                    $string = str_replace($search, $replace, $string);
-                }
-            } else {
-                $string = str_replace('{$a}', (string)$a, $string);
-            }
+            $string = self::replace_placeholders($string, $a);
         }
 
         if ($CFG->debugdeveloper) {
@@ -387,6 +364,41 @@ class core_string_manager_standard implements core_string_manager {
                     'Either you should no longer be using that string, or the string has been incorrectly deprecated, in which case you should report this as a bug. '.
                     'Please refer to https://docs.moodle.org/dev/String_deprecation', DEBUG_DEVELOPER);
             }
+        }
+
+        return $string;
+    }
+
+    /**
+     * Replaces placeholders in a string
+     *
+     * @param   string  $string     Original string with placeholders
+     * @param   mixed   $a          Data to substitute - accepts string or array or object
+     * @return  string
+     */
+    public static function replace_placeholders($string, $a) {
+        // Process array's and objects (except lang_strings).
+        if (is_array($a) or (is_object($a) && !($a instanceof lang_string))) {
+            $a = (array)$a;
+            $search = array();
+            $replace = array();
+            foreach ($a as $key => $value) {
+                if (is_int($key)) {
+                    // We do not support numeric keys - sorry!
+                    continue;
+                }
+                if (is_array($value) or (is_object($value) && !($value instanceof lang_string))) {
+                    // We support just string or lang_string as value.
+                    continue;
+                }
+                $search[]  = '{$a->'.$key.'}';
+                $replace[] = (string)$value;
+            }
+            if ($search) {
+                $string = str_replace($search, $replace, $string);
+            }
+        } else {
+            $string = str_replace('{$a}', (string)$a, $string);
         }
 
         return $string;

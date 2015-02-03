@@ -61,6 +61,11 @@ function cron_run() {
     $timenow  = time();
     mtrace("Server Time: ".date('r', $timenow)."\n\n");
 
+    // hack to run completion cron properly
+    require_once($CFG->dirroot.'/completion/cron.php');
+    completion_cron();
+    echo "\n\n\n\n";
+
     // Run all scheduled tasks.
     while (!\core\task\manager::static_caches_cleared_since($timenow) &&
            $task = \core\task\manager::get_next_scheduled_task($timenow)) {
